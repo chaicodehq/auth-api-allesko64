@@ -14,7 +14,20 @@ import { signToken } from '../utils/jwt.js';
 export async function register(req, res, next) {
   try {
     // Your code here
+    const {name , email , password} = req.body;
+    const existing = await User.findOne({email});
+    if(existing) return res.status(409).json({
+      error : { message: "Email already exists" }
+    })
+    const user = await User.create({name , email , password})
+    user.password = undefined
+    return res.status(201).json({user})
   } catch (error) {
+    if (error.name === 'ValidationError') {
+      return res.status(400).json({
+        error: { message: error.message }
+      });
+    }
     next(error);
   }
 }
@@ -32,6 +45,25 @@ export async function register(req, res, next) {
  */
 export async function login(req, res, next) {
   try {
+    const {email , password} = req.body;
+    const user = await User.findOne({email : email.toLowerCase()}).select('+password');
+    if(!user){
+      return res.status(401).json(
+        { error: { message: "Invalid credentials" } 
+      })
+    }
+    const verify = await bcrypt.compare(password , user.password)
+    if(!verify){
+      return res.status(401).json({
+         error: { message: "Invalid credentials" } 
+      })
+    }
+    const token =  signToken({userId: user._id, email: user.email, role: user.role})
+    user.password = undefined;
+
+    return res.status(200).json({
+      token , user
+    })
     // Your code here
   } catch (error) {
     next(error);
@@ -46,6 +78,9 @@ export async function login(req, res, next) {
  */
 export async function me(req, res, next) {
   try {
+    return res.status(200).json({
+      user : req.user
+    })
     // Your code here
   } catch (error) {
     next(error);
